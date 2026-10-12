@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+
+{% block title %}Shipments Management - ShipFlow{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Toolbar -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-truck-fast text-brand-600"></i>
+                Shipments Directory
+            </h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+                Manage logistics records with automated backend DML insertions and updates.
+            </p>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="openModal('newShipmentModal')" class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-semibold shadow transition flex items-center space-x-2">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>Book New Shipment (TCL)</span>
+            </button>
+            <button onclick="document.getElementById('toggleSqlDrawerBtn').click()" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-mono transition border border-slate-700 flex items-center space-x-1.5" title="View live SQL">
+                <i class="fa-solid fa-terminal text-xs"></i>
+                <span class="hidden md:inline">SQL Drawer</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Search & Filter Controls (Generates parameterized DML SELECT queries) -->
+    <form method="GET" action="{{ url_for('shipments_list') }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3">
+        <!-- Search input -->
+        <div class="flex-1 min-w-[200px] relative">
+            <i class="fa-solid fa-magnifying-glass text-slate-400 absolute left-3 top-2.5 text-xs"></i>
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search tracking #, recipient, or city..."
+                class="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+
+        <!-- Status filter -->
+        <div class="w-40">
+            <select name="status" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+                <option value="All" {% if not status_filter or status_filter == 'All' %}selected{% endif %}>All Statuses</option>
+                <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                <option value="In Transit" {% if status_filter == 'In Transit' %}selected{% endif %}>In Transit</option>
+                <option value="Out for Delivery" {% if status_filter == 'Out for Delivery' %}selected{% endif %}>Out for Delivery</option>
+                <option value="Delivered" {% if status_filter == 'Delivered' %}selected{% endif %}>Delivered</option>
+                <option value="Cancelled" {% if status_filter == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+            </select>
+        </div>
+
+        <!-- Destination City filter -->
+        <div class="w-40">
+            <select name="city" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+                <option value="">All Destinations</option>
+                {% for c in cities %}
+                <option value="{{ c.destination_city }}" {% if city_filter == c.destination_city %}selected{% endif %}>{{ c.destination_city }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Submit & Reset Buttons -->
+        <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium transition">
+            Filter (SELECT)
+        </button>
+        {% if search_query or status_filter or city_filter %}
+        <a href="{{ url_for('shipments_list') }}" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium transition">
+            Reset
+        </a>
+        {% endif %}
+    </form>
+
+    <!-- Shipments Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-600">
+                <thead class="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                        <th class="py-3 px-4">Tracking Number</th>
+                        <th class="py-3 px-4">Sender & Recipient</th>
+                        <th class="py-3 px-4">Route (Origin → Destination)</th>
+                        <th class="py-3 px-4">Weight & Cost</th>
+                        <th class="py-3 px-4">Current Status</th>
+                        <th class="py-3 px-4">Fleet / Warehouse</th>
+                        <th class="py-3 px-4 text-right">Quick Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% if shipments %}
+                        {% for s in shipments %}
+                        <tr class="hover:bg-slate-50/80 transition-colors">
+                            <!-- Tracking # -->
+                            <td class="py-3.5 px-4">
+                                <a href="{{ url_for('shipment_detail', tracking_number=s.tracking_number) }}" class="font-mono font-bold text-brand-600 hover:text-brand-800 flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-barcode text-xs text-slate-400"></i>
+                                    <span>{{ s.tracking_number }}</span>
+                                </a>
+                                <span class="text-[10px] text-slate-400 font-sans block mt-0.5">
+                                    ID: {{ s.id }} • {{ s.shipping_type }}
+                                </span>
+                            </td>
+
+                            <!-- Sender / Recipient -->
+                            <td class="py-3.5 px-4">
+                                <div class="font-medium text-slate-800">{{ s.recipient_name }}</div>
+                                <div class="text-[11px] text-slate-400">
+                                    From: <span class="text-slate-600">{{ s.sender_name }}</span>
+                                </div>
+                            </td>
+
+                            <!-- Route -->
+                            <td class="py-3.5 px-4">
+                                <div class="flex items-center space-x-1.5 font-medium text-slate-800">
+                                    <span>{{ s.origin_city }}</span>
+                                    <i class="fa-solid fa-arrow-right text-[10px] text-slate-400"></i>
+                                    <span class="text-brand-700">{{ s.destination_city }}</span>
+                                </div>
+                                <div class="text-[10px] text-slate-400 truncate max-w-[180px]" title="{{ s.destination_address }}">
+                                    {{ s.destination_address }}
+                                </div>
+                            </td>
+
+                            <!-- Weight & Cost -->
+                            <td class="py-3.5 px-4 font-mono">
+                                <div class="font-semibold text-slate-800">${{ s.shipping_cost }}</div>
+                                <div class="text-[10px] text-slate-400">{{ s.weight_kg }} kg</div>
+                            </td>
+
+                            <!-- Status Badge -->
+                            <td class="py-3.5 px-4">
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center space-x-1.5
+                                    {% if s.status == 'Delivered' %}bg-emerald-100 text-emerald-800 border border-emerald-200
+                                    {% elif s.status == 'In Transit' %}bg-amber-100 text-amber-800 border border-amber-200
+                                    {% elif s.status == 'Out for Delivery' %}bg-indigo-100 text-indigo-800 border border-indigo-200
+                                    {% elif s.status == 'Cancelled' %}bg-rose-100 text-rose-800 border border-rose-200
+                                    {% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %}">
+                                    <span class="w-1.5 h-1.5 rounded-full 
+                                        {% if s.status == 'Delivered' %}bg-emerald-500
+                                        {% elif s.status == 'In Transit' %}bg-amber-500
+                                        {% elif s.status == 'Out for Delivery' %}bg-indigo-500
+                                        {% elif s.status == 'Cancelled' %}bg-rose-500
+                                        {% else %}bg-slate-400{% endif %}"></span>
+                                    <span>{{ s.status }}</span>
+                                </span>
+                            </td>
+
+                            <!-- Fleet / Warehouse -->
+                            <td class="py-3.5 px-4">
+                                {% if s.vehicle_code %}
+                                    <div class="font-medium text-slate-800">{{ s.vehicle_code }}</div>
+                                    <div class="text-[10px] text-slate-400">{{ s.driver_name }}</div>
+                                {% elif s.warehouse_name %}
+                                    <div class="font-medium text-slate-800">{{ s.warehouse_name }}</div>
+                                    <div class="text-[10px] text-slate-400">Warehouse Storage</div>
+                                {% else %}
+                                    <span class="text-slate-400 italic">Not Assigned</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="py-3.5 px-4 text-right">
+                                <div class="flex items-center justify-end space-x-1.5">
+                                    <!-- Change Status button -->
+                                    <button onclick="openStatusModal({{ s.id }}, '{{ s.tracking_number }}', '{{ s.status }}', '{{ s.current_location }}')" 
+                                        class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded border border-amber-200 text-[11px] font-medium transition" title="Update Status">
+                                        <i class="fa-solid fa-arrows-rotate mr-1"></i>Status
+                                    </button>
+
+                                    <!-- Change Destination (Reroute) button -->
+                                    <button onclick="openRerouteModal({{ s.id }}, '{{ s.tracking_number }}', '{{ s.destination_city }}', '{{ s.destination_address }}')" 
+                                        class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-brand-700 rounded border border-blue-200 text-[11px] font-medium transition" title="Reroute Destination">
+                                        <i class="fa-solid fa-location-dot mr-1"></i>Reroute
+                                    </button>
+
+                                    <!-- Inspect Detail -->
+                                    <a href="{{ url_for('shipment_detail', tracking_number=s.tracking_number) }}" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition" title="Full Record">
+                                        <i class="fa-solid fa-eye text-xs"></i>
+                                    </a>
+
+                                    {% if current_user.role == 'admin' %}
+                                    <!-- Delete Button (Admin Only) -->
+                                    <form action="{{ url_for('delete_shipment', id=s.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to permanently delete shipment {{ s.tracking_number }}? This executes a raw DML DELETE.');" class="inline">
+                                        <button type="submit" class="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded transition border border-rose-200" title="Delete (DML DELETE)">
+                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="py-12 text-center text-slate-400">
+                                <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-300 block"></i>
+                                No shipments found matching your search criteria.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: BOOK NEW SHIPMENT (ATOMIC TCL TRANSACTION) -->
+<!-- ========================================================================= -->
+<div id="newShipmentModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <div>
+                <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                    <i class="fa-solid fa-box-archive text-brand-600"></i>
+                    <span>Book New Shipment</span>
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    User inputs are processed through an atomic <strong class="text-purple-600 font-mono">TCL Transaction (BEGIN / INSERT / COMMIT)</strong>.
+                </p>
+            </div>
+            <button onclick="closeModal('newShipmentModal')" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Form -->
+        <form action="{{ url_for('create_shipment') }}" method="POST" class="p-6 space-y-4 text-xs">
+            
+            <!-- Sender & Recipient Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Sender Name</label>
+                    <input type="text" name="sender_name" value="{{ current_user.full_name }}" required
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Recipient Name *</label>
+                    <input type="text" name="recipient_name" placeholder="e.g. Rachel Green" required
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Recipient Phone</label>
+                    <input type="text" name="recipient_phone" placeholder="+1 555-0199"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Customer Profile (FK)</label>
+                    <select name="customer_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 bg-white">
+                        <option value="">-- Guest / Unassigned Customer --</option>
+                        {% for cust in customers %}
+                        <option value="{{ cust.id }}">{{ cust.name }} ({{ cust.city }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <hr class="border-slate-100 my-2">
+
+            <!-- Origin & Destination -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="block font-semibold text-slate-700">Origin City & Address</label>
+                    <input type="text" name="origin_city" placeholder="Origin City (e.g. New York)" required
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    <input type="text" name="origin_address" placeholder="Pickup Address (e.g. 100 Broadway Ave)" required
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div class="space-y-2">
+                    <label class="block font-semibold text-slate-700">Destination City & Address *</label>
+                    <input type="text" name="destination_city" placeholder="Destination City (e.g. Los Angeles)" required
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    <input type="text" name="destination_address" placeholder="Delivery Address (e.g. 450 Sunset Blvd)" required
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+            </div>
+
+            <hr class="border-slate-100 my-2">
+
+            <!-- Package Attributes & Service Level -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Weight (kg) *</label>
+                    <input type="number" step="0.1" min="0.1" name="weight_kg" value="2.5" required
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Shipping Service *</label>
+                    <select name="shipping_type" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 bg-white">
+                        <option value="Standard">Standard Ground ($5 base + $2.5/kg)</option>
+                        <option value="Express">Express Air ($12 base + $4.5/kg)</option>
+                        <option value="Overnight">Overnight Priority ($25 base + $7/kg)</option>
+                        <option value="Freight">Heavy Freight ($8 base + $1.5/kg)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Hub Warehouse (FK)</label>
+                    <select name="warehouse_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 bg-white">
+                        <option value="">-- Auto-Assign Hub --</option>
+                        {% for w in warehouses %}
+                        <option value="{{ w.id }}">{{ w.name }} ({{ w.city }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">Package Contents / Notes</label>
+                <textarea name="notes" rows="2" placeholder="e.g. Fragile electronics, handle with caution"
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+            </div>
+
+            <!-- Footer Action -->
+            <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+                <button type="button" onclick="closeModal('newShipmentModal')" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-lg shadow-md transition flex items-center space-x-2">
+                    <i class="fa-solid fa-check text-xs"></i>
+                    <span>Execute Transaction & Book (TCL)</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: QUICK UPDATE STATUS (DML UPDATE + DB TRIGGER AUDIT) -->
+<!-- ========================================================================= -->
+<div id="statusModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+        <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                <i class="fa-solid fa-arrows-rotate text-amber-500"></i>
+                <span>Update Shipping Status</span>
+            </h3>
+            <button onclick="closeModal('statusModal')" class="p-1 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <form id="statusForm" method="POST" class="p-5 space-y-4 text-xs">
+            <div>
+                <span class="text-slate-500">Shipment:</span>
+                <span id="statusModalTracking" class="font-mono font-bold text-brand-600 text-sm ml-1"></span>
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">New Status *</label>
+                <select name="status" id="statusSelect" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 bg-white font-medium">
+                    <option value="Pending">Pending</option>
+                    <option value="In Transit">In Transit</option>
+                    <option value="Out for Delivery">Out for Delivery</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">Current Location (Check-in Point)</label>
+                <input type="text" name="current_location" id="statusLocationInput" placeholder="e.g. Denver Distribution Center"
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">Optional Milestone Note</label>
+                <input type="text" name="notes" placeholder="e.g. Scanned at conveyor belt 3"
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900">
+                <i class="fa-solid fa-bolt text-amber-600 mr-1"></i>
+                <strong>DBMS Trigger Note:</strong> Updating this status automatically invokes the SQLite Trigger <code class="font-mono font-bold text-amber-950">trg_shipment_status_audit</code> to record the event into the audit log!
+            </div>
+
+            <div class="flex items-center justify-end space-x-2 pt-2">
+                <button type="button" onclick="closeModal('statusModal')" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow transition">
+                    Update Status (DML UPDATE)
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: REROUTE DESTINATION (DML UPDATE) -->
+<!-- ========================================================================= -->
+<div id="rerouteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+        <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                <i class="fa-solid fa-location-dot text-brand-600"></i>
+                <span>Reroute Shipment Destination</span>
+            </h3>
+            <button onclick="closeModal('rerouteModal')" class="p-1 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <form id="rerouteForm" method="POST" class="p-5 space-y-4 text-xs">
+            <div>
+                <span class="text-slate-500">Shipment:</span>
+                <span id="rerouteModalTracking" class="font-mono font-bold text-brand-600 text-sm ml-1"></span>
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">New Destination City *</label>
+                <input type="text" name="destination_city" id="rerouteCityInput" required
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">New Delivery Address *</label>
+                <input type="text" name="destination_address" id="rerouteAddressInput" required
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">Reason for Rerouting</label>
+                <input type="text" name="reason" value="Customer requested address correction"
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <div class="flex items-center justify-end space-x-2 pt-2">
+                <button type="button" onclick="closeModal('rerouteModal')" class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-lg shadow transition">
+                    Save New Destination (DML UPDATE)
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openStatusModal(id, tracking, currentStatus, currentLocation) {
+        document.getElementById('statusModalTracking').textContent = tracking;
+        document.getElementById('statusSelect').value = currentStatus;
+        document.getElementById('statusLocationInput').value = currentLocation || '';
+        document.getElementById('statusForm').action = `/shipments/${id}/status`;
+        openModal('statusModal');
+    }
+
+    function openRerouteModal(id, tracking, currentCity, currentAddress) {
+        document.getElementById('rerouteModalTracking').textContent = tracking;
+        document.getElementById('rerouteCityInput').value = currentCity;
+        document.getElementById('rerouteAddressInput').value = currentAddress;
+        document.getElementById('rerouteForm').action = `/shipments/${id}/destination`;
+        openModal('rerouteModal');
+    }
+</script>
+{% endblock %}

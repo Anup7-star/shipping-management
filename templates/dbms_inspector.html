@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}DBMS Schema & Query Inspector - ShipFlow{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Hero Section -->
+    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-lg border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-mono text-purple-300 uppercase tracking-wider mb-1">
+                <i class="fa-solid fa-microchip text-xs"></i>
+                <span>Database Management System Architecture</span>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight">DBMS Operations & Schema Inspector</h1>
+            <p class="text-slate-300 text-sm mt-1 max-w-2xl">
+                Inspect raw DDL schemas, active database views, automated triggers, performance indexes, and the complete audit stream of executed SQL operations.
+            </p>
+        </div>
+
+        {% if current_user.role == 'admin' %}
+        <div class="flex items-center space-x-2">
+            <form action="{{ url_for('dbms_reset') }}" method="POST" onsubmit="return confirm('Reset and re-execute all DDL schema statements, views, triggers, and seed data?');">
+                <button type="submit" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow transition flex items-center space-x-2">
+                    <i class="fa-solid fa-arrows-rotate text-xs"></i>
+                    <span>Re-Run All DDL & Reset DB</span>
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Interactive Navigation Tabs -->
+    <div class="flex border-b border-slate-200 overflow-x-auto space-x-4 text-xs font-semibold">
+        <button onclick="switchTab('tablesTab', this)" class="tab-btn active border-b-2 border-brand-600 text-brand-600 pb-3 flex items-center space-x-2">
+            <i class="fa-solid fa-table-cells text-sm"></i>
+            <span>Tables & Schemas (DDL)</span>
+        </button>
+        <button onclick="switchTab('viewsTab', this)" class="tab-btn border-b-2 border-transparent text-slate-500 hover:text-slate-700 pb-3 flex items-center space-x-2">
+            <i class="fa-solid fa-chart-column text-sm"></i>
+            <span>Views (CREATE VIEW)</span>
+        </button>
+        <button onclick="switchTab('triggersTab', this)" class="tab-btn border-b-2 border-transparent text-slate-500 hover:text-slate-700 pb-3 flex items-center space-x-2">
+            <i class="fa-solid fa-bolt text-sm"></i>
+            <span>Triggers & Automation</span>
+        </button>
+        <button onclick="switchTab('indexesTab', this)" class="tab-btn border-b-2 border-transparent text-slate-500 hover:text-slate-700 pb-3 flex items-center space-x-2">
+            <i class="fa-solid fa-magnifying-glass-chart text-sm"></i>
+            <span>Indexes (CREATE INDEX)</span>
+        </button>
+        <button onclick="switchTab('consoleTab', this)" class="tab-btn border-b-2 border-transparent text-slate-500 hover:text-slate-700 pb-3 flex items-center space-x-2">
+            <i class="fa-solid fa-terminal text-sm"></i>
+            <span>SQL Sandbox & Query Tester</span>
+        </button>
+        <button onclick="switchTab('auditLogsTab', this)" class="tab-btn border-b-2 border-transparent text-slate-500 hover:text-slate-700 pb-3 flex items-center space-x-2">
+            <i class="fa-solid fa-clock-rotate-left text-sm"></i>
+            <span>Live Query Log</span>
+        </button>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 1: TABLES & SCHEMAS (DDL) -->
+    <!-- ===================================================================== -->
+    <div id="tablesTab" class="tab-content space-y-6">
+        <div class="grid grid-cols-1 gap-6">
+            {% for t in table_details %}
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
+                        <h3 class="font-mono font-bold text-slate-900 text-sm">TABLE: {{ t.name }}</h3>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-200 text-slate-700 font-semibold">
+                            {{ t.row_count }} records
+                        </span>
+                    </div>
+                    <span class="text-[10px] font-mono text-slate-400">SQLite3 Relational</span>
+                </div>
+
+                <!-- Table Columns Metadata -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-slate-100 text-slate-500 text-[10px] uppercase border-b border-slate-200">
+                            <tr>
+                                <th class="py-2.5 px-4">CID</th>
+                                <th class="py-2.5 px-4">Column Name</th>
+                                <th class="py-2.5 px-4">Data Type</th>
+                                <th class="py-2.5 px-4">Not Null</th>
+                                <th class="py-2.5 px-4">Default Value</th>
+                                <th class="py-2.5 px-4">Primary Key</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-slate-700">
+                            {% for col in t.columns %}
+                            <tr class="hover:bg-slate-50/80">
+                                <td class="py-2 px-4 text-slate-400">{{ col.cid }}</td>
+                                <td class="py-2 px-4 font-bold text-slate-900">{{ col.name }}</td>
+                                <td class="py-2 px-4 text-purple-700 font-semibold">{{ col.type }}</td>
+                                <td class="py-2 px-4">{{ "YES" if col.notnull else "NO" }}</td>
+                                <td class="py-2 px-4 text-slate-500">{{ col.dflt_value or "NULL" }}</td>
+                                <td class="py-2 px-4">
+                                    {% if col.pk %}
+                                    <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px]">PK</span>
+                                    {% else %}-{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- DDL Statement Snippet -->
+                <div class="p-3 bg-slate-900 text-slate-300 font-mono text-[11px] border-t border-slate-800 overflow-x-auto">
+                    <span class="text-slate-500">// Underlying DDL CREATE TABLE:</span>
+                    <pre class="mt-1 text-emerald-400 leading-snug whitespace-pre-wrap">{{ t.sql }}</pre>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 2: VIEWS (CREATE VIEW) -->
+    <!-- ===================================================================== -->
+    <div id="viewsTab" class="tab-content hidden space-y-6">
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl text-xs text-blue-900">
+            <i class="fa-solid fa-circle-info text-brand-600 mr-1.5"></i>
+            <strong>About Views in DBMS:</strong> Views are virtual tables defined by stored SQL SELECT queries. They encapsulate complex multi-table JOINs and aggregations without physically duplicating storage.
+        </div>
+
+        {% for v in views %}
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                    <h3 class="font-mono font-bold text-slate-900 text-sm">VIEW: {{ v.name }}</h3>
+                </div>
+                <span class="text-[10px] font-mono text-slate-400">Virtual Relational View</span>
+            </div>
+            <div class="p-4 bg-slate-900 text-slate-300 font-mono text-xs overflow-x-auto">
+                <pre class="text-indigo-300 whitespace-pre-wrap leading-relaxed">{{ v.sql }}</pre>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 3: TRIGGERS & AUTOMATION -->
+    <!-- ===================================================================== -->
+    <div id="triggersTab" class="tab-content hidden space-y-6">
+        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-900">
+            <i class="fa-solid fa-bolt text-amber-600 mr-1.5"></i>
+            <strong>About Database Triggers:</strong> Triggers are automated procedures executed by the database engine in response to specific DML events (`AFTER UPDATE`, `AFTER INSERT`). They guarantee audit trails and business logic integrity.
+        </div>
+
+        {% for trg in triggers %}
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                    <h3 class="font-mono font-bold text-slate-900 text-sm">TRIGGER: {{ trg.name }}</h3>
+                    <span class="text-[10px] font-mono text-slate-500 bg-slate-200 px-2 py-0.5 rounded">
+                        Target Table: {{ trg.tbl_name }}
+                    </span>
+                </div>
+                <span class="text-[10px] font-mono text-emerald-600 font-bold">ARMED & ACTIVE</span>
+            </div>
+            <div class="p-4 bg-slate-900 text-slate-300 font-mono text-xs overflow-x-auto">
+                <pre class="text-amber-300 whitespace-pre-wrap leading-relaxed">{{ trg.sql }}</pre>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 4: INDEXES (CREATE INDEX) -->
+    <!-- ===================================================================== -->
+    <div id="indexesTab" class="tab-content hidden space-y-6">
+        <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-xs text-emerald-900">
+            <i class="fa-solid fa-bolt text-emerald-600 mr-1.5"></i>
+            <strong>About Indexes in DBMS:</strong> B-Tree indexes speed up row lookups from O(N) linear table scans to O(log N) logarithmic binary searches on frequent filter fields like <code class="font-mono font-bold">tracking_number</code> and <code class="font-mono font-bold">destination_city</code>.
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-50 text-slate-500 text-[10px] uppercase border-b border-slate-200">
+                    <tr>
+                        <th class="py-3 px-4">Index Name</th>
+                        <th class="py-3 px-4">Table</th>
+                        <th class="py-3 px-4">DDL Definition</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for idx in indexes %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-bold text-brand-700">{{ idx.name }}</td>
+                        <td class="py-3 px-4 text-slate-800 font-semibold">{{ idx.tbl_name }}</td>
+                        <td class="py-3 px-4 text-slate-600">
+                            <code>{{ idx.sql or "System generated primary key index" }}</code>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 5: SQL SANDBOX & QUERY TESTER -->
+    <!-- ===================================================================== -->
+    <div id="consoleTab" class="tab-content hidden space-y-6">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                        <i class="fa-solid fa-terminal text-brand-600"></i>
+                        <span>Interactive SQL Query Console</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                        Test and evaluate arbitrary relational SQL queries directly against the database.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Quick Template Queries -->
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <span class="text-slate-400 font-semibold">Load Sample:</span>
+                <button onclick="setQuery('SELECT s.id, s.tracking_number, s.status, s.destination_city, c.name as customer, v.driver_name FROM shipments s JOIN customers c ON s.customer_id = c.id LEFT JOIN vehicles v ON s.vehicle_id = v.id;')" 
+                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-mono text-[11px] border border-slate-300">
+                    JOIN Query
+                </button>
+                <button onclick="setQuery('SELECT destination_city, COUNT(*) as count, ROUND(AVG(shipping_cost), 2) as avg_cost FROM shipments GROUP BY destination_city HAVING count >= 1;')" 
+                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-mono text-[11px] border border-slate-300">
+                    GROUP BY + HAVING
+                </button>
+                <button onclick="setQuery('SELECT * FROM shipments WHERE weight_kg > (SELECT AVG(weight_kg) FROM shipments);')" 
+                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-mono text-[11px] border border-slate-300">
+                    Nested Subquery
+                </button>
+                <button onclick="setQuery('SELECT * FROM view_destination_analytics;')" 
+                    class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-mono text-[11px] border border-slate-300">
+                    Select from VIEW
+                </button>
+            </div>
+
+            {% if current_user.role == 'admin' %}
+            <!-- SQL Input Form -->
+            <form action="{{ url_for('execute_custom_sql') }}" method="POST" class="space-y-3">
+                <textarea id="sqlQueryInput" name="sql_query" rows="4" required placeholder="Type SQL query here (e.g. SELECT * FROM shipments;)"
+                    class="w-full p-3 font-mono text-xs bg-slate-900 text-emerald-400 rounded-xl border border-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] text-slate-400 font-mono">SQLite3 Dialect • Full Syntax Supported</span>
+                    <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-semibold shadow transition flex items-center space-x-2">
+                        <i class="fa-solid fa-play text-xs"></i>
+                        <span>Execute SQL Statement</span>
+                    </button>
+                </div>
+            </form>
+            {% else %}
+            <div class="p-4 bg-slate-100 rounded-lg text-xs text-slate-600">
+                <i class="fa-solid fa-lock mr-1.5"></i>
+                Ad-hoc custom SQL console execution is reserved for <strong>Admin</strong> users.
+            </div>
+            {% endif %}
+
+            <!-- Custom Result Table (if any) -->
+            {% if custom_result %}
+            <div class="mt-6 border-t border-slate-200 pt-4 space-y-3">
+                <div class="flex items-center justify-between text-xs font-mono">
+                    <span class="font-bold text-slate-800">Result: {{ custom_result.count }} rows returned</span>
+                    <span class="text-slate-500">Query: <code>{{ custom_result.sql }}</code></span>
+                </div>
+
+                {% if custom_result.rows %}
+                <div class="overflow-x-auto rounded-lg border border-slate-200">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-slate-50 text-slate-600 text-[11px] uppercase border-b border-slate-200">
+                            <tr>
+                                {% for key in custom_result.rows[0].keys() %}
+                                <th class="py-2.5 px-3">{{ key }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for row in custom_result.rows %}
+                            <tr class="hover:bg-slate-50">
+                                {% for val in row.values() %}
+                                <td class="py-2 px-3 text-slate-800">{{ val }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400 italic py-2">Query returned 0 rows.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 6: LIVE QUERY LOG -->
+    <!-- ===================================================================== -->
+    <div id="auditLogsTab" class="tab-content hidden space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900">Recent DBMS Execution Trail</h3>
+            <span class="text-xs text-slate-500 font-mono">Total Recorded: {{ logs|length }} operations</span>
+        </div>
+
+        <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3 font-mono text-xs">
+            {% for l in logs %}
+            <div class="p-3 bg-slate-900 rounded-lg border border-slate-800 hover:border-slate-700 transition">
+                <div class="flex items-center justify-between text-[11px] mb-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase
+                            {% if 'DDL' in l.type %}bg-amber-950 text-amber-300 border border-amber-800
+                            {% elif 'INSERT' in l.type %}bg-emerald-950 text-emerald-300 border border-emerald-800
+                            {% elif 'UPDATE' in l.type %}bg-blue-950 text-blue-300 border border-blue-800
+                            {% elif 'DELETE' in l.type %}bg-rose-950 text-rose-300 border border-rose-800
+                            {% elif 'SELECT' in l.type %}bg-indigo-950 text-indigo-300 border border-indigo-800
+                            {% else %}bg-purple-950 text-purple-300 border border-purple-800{% endif %}">
+                            {{ l.type }}
+                        </span>
+                        <span class="text-slate-400 text-[10px]">{{ l.timestamp }}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400">
+                        <span>{{ l.duration_ms }}ms</span> • <span>{{ l.rows_affected }} rows</span>
+                    </div>
+                </div>
+                <div class="text-slate-200 text-[11px] break-words">
+                    <code>{{ l.sql }}</code>
+                </div>
+                {% if l.params %}
+                <div class="mt-1 text-[10px] text-slate-400">
+                    <span class="text-slate-500">Parameters:</span> <code class="text-amber-300">{{ l.params }}</code>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-slate-500 text-center py-6">No queries logged yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('border-brand-600', 'text-brand-600');
+            el.classList.add('border-transparent', 'text-slate-500');
+        });
+
+        const target = document.getElementById(tabId);
+        if (target) target.classList.remove('hidden');
+
+        btn.classList.add('border-brand-600', 'text-brand-600');
+        btn.classList.remove('border-transparent', 'text-slate-500');
+    }
+
+    function setQuery(sql) {
+        const input = document.getElementById('sqlQueryInput');
+        if (input) {
+            input.value = sql;
+            input.focus();
+        }
+    }
+</script>
+{% endblock %}

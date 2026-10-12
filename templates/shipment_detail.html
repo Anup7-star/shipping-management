@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}{{ shipment.tracking_number }} - Shipment Details - ShipFlow{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-6xl mx-auto">
+
+    <!-- Top Breadcrumb & Action bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <a href="{{ url_for('shipments_list') }}" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition" title="Back to Shipments">
+                <i class="fa-solid fa-arrow-left"></i>
+            </a>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="text-lg font-bold text-slate-900 font-mono tracking-tight">{{ shipment.tracking_number }}</h1>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-brand-100 text-brand-700">
+                        {{ shipment.shipping_type }}
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500">Created: {{ shipment.created_at }}</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <button onclick="document.getElementById('toggleSqlDrawerBtn').click()" class="px-3 py-1.5 bg-slate-900 text-emerald-400 rounded-lg text-xs font-mono transition border border-slate-700 flex items-center space-x-1.5">
+                <i class="fa-solid fa-terminal text-xs"></i>
+                <span>Inspect Query</span>
+            </button>
+            <a href="{{ url_for('track', tracking_number=shipment.tracking_number) }}" class="px-3 py-1.5 bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg text-xs font-semibold transition border border-brand-200 flex items-center space-x-1.5">
+                <i class="fa-solid fa-share-nodes text-xs"></i>
+                <span>Public Tracking Link</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Interactive Progress Stepper -->
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">Delivery Milestone Pipeline</h2>
+        
+        {% set step = 1 %}
+        {% if shipment.status == 'Pending' %}{% set step = 1 %}
+        {% elif shipment.status == 'In Transit' %}{% set step = 2 %}
+        {% elif shipment.status == 'Out for Delivery' %}{% set step = 3 %}
+        {% elif shipment.status == 'Delivered' %}{% set step = 4 %}
+        {% elif shipment.status == 'Cancelled' %}{% set step = 0 %}{% endif %}
+
+        {% if shipment.status == 'Cancelled' %}
+            <div class="p-4 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-sm flex items-center space-x-3">
+                <i class="fa-solid fa-ban text-rose-600 text-lg"></i>
+                <div>
+                    <strong>This shipment has been cancelled.</strong>
+                    <p class="text-xs text-rose-700 mt-0.5">All logistics operations on this parcel have been halted.</p>
+                </div>
+            </div>
+        {% else %}
+            <div class="grid grid-cols-4 gap-2 relative">
+                <!-- Step 1: Booked -->
+                <div class="text-center">
+                    <div class="w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-bold shadow-md transition-all
+                        {% if step >= 1 %}bg-brand-600 text-white ring-4 ring-brand-100{% else %}bg-slate-200 text-slate-500{% endif %}">
+                        <i class="fa-solid fa-receipt"></i>
+                    </div>
+                    <div class="mt-2 text-xs font-semibold {% if step >= 1 %}text-brand-900{% else %}text-slate-400{% endif %}">1. Booked</div>
+                    <div class="text-[10px] text-slate-400">Order Placed</div>
+                </div>
+
+                <!-- Step 2: In Transit -->
+                <div class="text-center">
+                    <div class="w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-bold shadow-md transition-all
+                        {% if step >= 2 %}bg-amber-500 text-white ring-4 ring-amber-100{% else %}bg-slate-200 text-slate-500{% endif %}">
+                        <i class="fa-solid fa-truck-moving"></i>
+                    </div>
+                    <div class="mt-2 text-xs font-semibold {% if step >= 2 %}text-amber-900{% else %}text-slate-400{% endif %}">2. In Transit</div>
+                    <div class="text-[10px] text-slate-400">Hub Cross-Dock</div>
+                </div>
+
+                <!-- Step 3: Out for Delivery -->
+                <div class="text-center">
+                    <div class="w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-bold shadow-md transition-all
+                        {% if step >= 3 %}bg-indigo-600 text-white ring-4 ring-indigo-100{% else %}bg-slate-200 text-slate-500{% endif %}">
+                        <i class="fa-solid fa-motorcycle"></i>
+                    </div>
+                    <div class="mt-2 text-xs font-semibold {% if step >= 3 %}text-indigo-900{% else %}text-slate-400{% endif %}">3. Out for Delivery</div>
+                    <div class="text-[10px] text-slate-400">Final Mile Courier</div>
+                </div>
+
+                <!-- Step 4: Delivered -->
+                <div class="text-center">
+                    <div class="w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-bold shadow-md transition-all
+                        {% if step >= 4 %}bg-emerald-600 text-white ring-4 ring-emerald-100{% else %}bg-slate-200 text-slate-500{% endif %}">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div class="mt-2 text-xs font-semibold {% if step >= 4 %}text-emerald-900{% else %}text-slate-400{% endif %}">4. Delivered</div>
+                    <div class="text-[10px] text-slate-400">Completed</div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- 2-Column Detail Cards -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Column 1 & 2: Primary Attributes & Tracking Timeline -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Route & Parcel Information Card -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                        <i class="fa-solid fa-map-location-dot text-brand-600"></i>
+                        <span>Route & Dispatch Metadata</span>
+                    </h3>
+                    <span class="text-xs font-mono font-bold text-slate-800">
+                        Total Cost: <span class="text-emerald-600">${{ shipment.shipping_cost }}</span>
+                    </span>
+                </div>
+
+                <!-- Route Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center">
+                            <i class="fa-solid fa-circle-dot text-brand-500 mr-1.5 text-[9px]"></i>Origin
+                        </div>
+                        <div class="font-bold text-slate-900 text-sm">{{ shipment.origin_city }}</div>
+                        <div class="text-slate-600 mt-0.5">{{ shipment.origin_address }}</div>
+                        <div class="text-[11px] text-slate-500 mt-2">Sender: <strong>{{ shipment.sender_name }}</strong></div>
+                    </div>
+
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center">
+                            <i class="fa-solid fa-location-dot text-rose-500 mr-1.5 text-[9px]"></i>Destination
+                        </div>
+                        <div class="font-bold text-slate-900 text-sm">{{ shipment.destination_city }}</div>
+                        <div class="text-slate-600 mt-0.5">{{ shipment.destination_address }}</div>
+                        <div class="text-[11px] text-slate-500 mt-2">Recipient: <strong>{{ shipment.recipient_name }}</strong> ({{ shipment.recipient_phone }})</div>
+                    </div>
+                </div>
+
+                <!-- Package Specs -->
+                <div class="grid grid-cols-3 gap-3 text-center text-xs">
+                    <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 text-[10px] uppercase font-semibold block">Weight</span>
+                        <span class="font-mono font-bold text-slate-800">{{ shipment.weight_kg }} kg</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 text-[10px] uppercase font-semibold block">Current Station</span>
+                        <span class="font-semibold text-slate-800 truncate block">{{ shipment.current_location }}</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 text-[10px] uppercase font-semibold block">Service Class</span>
+                        <span class="font-semibold text-brand-700">{{ shipment.shipping_type }}</span>
+                    </div>
+                </div>
+
+                {% if shipment.notes %}
+                <div class="p-3 bg-amber-50/60 border border-amber-200/60 rounded-lg text-xs text-amber-900">
+                    <strong class="font-semibold">Special Instructions:</strong> {{ shipment.notes }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Detailed Event History Timeline (Generated via Triggers & DML Inserts) -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-timeline text-indigo-600"></i>
+                        <h3 class="text-sm font-bold text-slate-900">DBMS Tracking History Trail</h3>
+                    </div>
+                    <span class="text-[10px] font-mono bg-purple-100 text-purple-700 px-2 py-0.5 rounded border border-purple-200">
+                        Table: tracking_events
+                    </span>
+                </div>
+
+                <div class="space-y-4">
+                    {% for ev in events %}
+                    <div class="flex items-start space-x-3 text-xs">
+                        <div class="w-6 h-6 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-[10px] text-slate-600 mt-0.5">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                        <div class="flex-1 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-slate-800">{{ ev.status }}</span>
+                                <span class="text-[10px] text-slate-400 font-mono">{{ ev.timestamp }}</span>
+                            </div>
+                            <div class="text-slate-600 mt-0.5">{{ ev.description }}</div>
+                            <div class="text-[10px] text-slate-400 mt-1 flex items-center">
+                                <i class="fa-solid fa-map-pin mr-1 text-[9px]"></i>
+                                <span>{{ ev.location }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-slate-400 italic text-center py-4">No events logged for this parcel yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Column 3: Quick Action Panels (Status Change, Reroute, Fleet Assignment) -->
+        <div class="space-y-6">
+
+            <!-- Quick Status Updater Card -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+                <div class="flex items-center space-x-2 text-slate-900 font-bold text-xs uppercase tracking-wider border-b border-slate-100 pb-2">
+                    <i class="fa-solid fa-arrows-rotate text-amber-500"></i>
+                    <span>Advance Status (DML UPDATE)</span>
+                </div>
+
+                <form action="{{ url_for('update_shipment_status', id=shipment.id) }}" method="POST" class="space-y-3 text-xs">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">New Status</label>
+                        <select name="status" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 bg-white">
+                            <option value="Pending" {% if shipment.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="In Transit" {% if shipment.status == 'In Transit' %}selected{% endif %}>In Transit</option>
+                            <option value="Out for Delivery" {% if shipment.status == 'Out for Delivery' %}selected{% endif %}>Out for Delivery</option>
+                            <option value="Delivered" {% if shipment.status == 'Delivered' %}selected{% endif %}>Delivered</option>
+                            <option value="Cancelled" {% if shipment.status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Check-in Location</label>
+                        <input type="text" name="current_location" value="{{ shipment.current_location }}" required
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Milestone Note</label>
+                        <input type="text" name="notes" placeholder="e.g. Cleared sorting conveyor"
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
+                    </div>
+
+                    <button type="submit" class="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow-sm transition">
+                        Update Status & Fire Trigger
+                    </button>
+                </form>
+            </div>
+
+            <!-- Destination Reroute Card -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+                <div class="flex items-center space-x-2 text-slate-900 font-bold text-xs uppercase tracking-wider border-b border-slate-100 pb-2">
+                    <i class="fa-solid fa-route text-brand-600"></i>
+                    <span>Reroute Address</span>
+                </div>
+
+                <form action="{{ url_for('update_destination', id=shipment.id) }}" method="POST" class="space-y-3 text-xs">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">New Destination City</label>
+                        <input type="text" name="destination_city" value="{{ shipment.destination_city }}" required
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">New Delivery Address</label>
+                        <input type="text" name="destination_address" value="{{ shipment.destination_address }}" required
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Reroute Reason</label>
+                        <input type="text" name="reason" value="Recipient requested address reroute"
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
+                    </div>
+
+                    <button type="submit" class="w-full py-2 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-lg shadow-sm transition">
+                        Save New Address (DML UPDATE)
+                    </button>
+                </form>
+            </div>
+
+            <!-- Fleet & Warehouse Assignment (Dispatcher / Admin) -->
+            {% if current_user.role in ['admin', 'dispatcher'] %}
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+                <div class="flex items-center space-x-2 text-slate-900 font-bold text-xs uppercase tracking-wider border-b border-slate-100 pb-2">
+                    <i class="fa-solid fa-truck text-emerald-600"></i>
+                    <span>Assign Fleet & Warehouse (FK)</span>
+                </div>
+
+                <form action="{{ url_for('assign_fleet', id=shipment.id) }}" method="POST" class="space-y-3 text-xs">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Assigned Vehicle</label>
+                        <select name="vehicle_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 bg-white">
+                            <option value="">-- No Vehicle Assigned --</option>
+                            {% for v in vehicles %}
+                            <option value="{{ v.id }}" {% if shipment.vehicle_id == v.id %}selected{% endif %}>
+                                {{ v.vehicle_code }} - {{ v.driver_name }} ({{ v.vehicle_type }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Assigned Warehouse Hub</label>
+                        <select name="warehouse_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 bg-white">
+                            <option value="">-- No Hub Assigned --</option>
+                            {% for w in warehouses %}
+                            <option value="{{ w.id }}" {% if shipment.warehouse_id == w.id %}selected{% endif %}>
+                                {{ w.name }} ({{ w.city }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-lg shadow-sm transition">
+                        Update Foreign Keys (FK Assignment)
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ShipFlow Logistics{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Hero Section & Welcome -->
+    <div class="bg-gradient-to-r from-slate-900 via-brand-950 to-indigo-950 rounded-2xl p-6 text-white shadow-lg border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-mono text-brand-300 uppercase tracking-wider mb-1">
+                <span>Enterprise Relational Logistics</span>
+                <span>•</span>
+                <span>Role: {{ current_user.role | upper }}</span>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight">Logistics Control Center</h1>
+            <p class="text-slate-300 text-sm mt-1 max-w-xl">
+                Managing parcel dispatches, fleet routing, and deliveries powered by underlying SQL DDL, DML, TCL transactions, and automated database triggers.
+            </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+            <a href="{{ url_for('shipments_list') }}" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-md transition flex items-center space-x-2">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>Book Shipment</span>
+            </a>
+            <a href="{{ url_for('dbms_inspector') }}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 rounded-xl text-sm font-medium shadow-sm transition flex items-center space-x-2">
+                <i class="fa-solid fa-database text-xs"></i>
+                <span>Inspect DBMS Schema</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI Metric Cards (Calculated via SQL Aggregate Functions: COUNT, SUM, ROUND) -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <!-- Total Shipments -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Orders</span>
+                <div class="w-8 h-8 rounded-lg bg-blue-50 text-brand-600 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                </div>
+            </div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold text-slate-900">{{ stats.total_shipments or 0 }}</span>
+                <span class="text-[10px] font-mono text-slate-400">COUNT(*)</span>
+            </div>
+        </div>
+
+        <!-- In Transit -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">In Transit</span>
+                <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-truck-moving"></i>
+                </div>
+            </div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold text-amber-600">{{ stats.in_transit_count or 0 }}</span>
+                <span class="text-[10px] font-mono text-slate-400">In Route</span>
+            </div>
+        </div>
+
+        <!-- Out for Delivery -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Out for Delivery</span>
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-motorcycle"></i>
+                </div>
+            </div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold text-indigo-600">{{ stats.out_for_delivery_count or 0 }}</span>
+                <span class="text-[10px] font-mono text-slate-400">Final Leg</span>
+            </div>
+        </div>
+
+        <!-- Delivered -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Delivered</span>
+                <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold text-emerald-600">{{ stats.delivered_count or 0 }}</span>
+                <span class="text-[10px] font-mono text-emerald-600 font-semibold">Success</span>
+            </div>
+        </div>
+
+        <!-- Total Revenue -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 col-span-2 lg:col-span-1">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Revenue</span>
+                <div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-dollar-sign"></i>
+                </div>
+            </div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold text-purple-700">${{ stats.total_revenue or 0.00 }}</span>
+                <span class="text-[10px] font-mono text-slate-400">SUM(cost)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main 2-Column Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left 2 Cols: Active Deliveries (Powered by SQL VIEW view_active_deliveries) -->
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-route text-brand-600 text-sm"></i>
+                    <h2 class="text-sm font-bold text-slate-800">Active Parcels Pipeline</h2>
+                    <span class="text-[10px] font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
+                        SQL VIEW: view_active_deliveries
+                    </span>
+                </div>
+                <a href="{{ url_for('shipments_list') }}" class="text-xs font-medium text-brand-600 hover:text-brand-800">
+                    View All Shipments →
+                </a>
+            </div>
+
+            <div class="overflow-x-auto flex-1">
+                <table class="w-full text-left text-xs text-slate-600">
+                    <thead class="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                        <tr>
+                            <th class="py-3 px-4">Tracking #</th>
+                            <th class="py-3 px-4">Recipient & Dest</th>
+                            <th class="py-3 px-4">Service</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Vehicle / Driver</th>
+                            <th class="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-sans">
+                        {% if active_deliveries %}
+                            {% for d in active_deliveries %}
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="py-3 px-4 font-mono font-semibold text-brand-700">
+                                    <a href="{{ url_for('shipment_detail', tracking_number=d.tracking_number) }}" class="hover:underline">
+                                        {{ d.tracking_number }}
+                                    </a>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <div class="font-medium text-slate-800">{{ d.recipient_name }}</div>
+                                    <div class="text-[11px] text-slate-400 flex items-center space-x-1">
+                                        <span>{{ d.origin_city }}</span>
+                                        <i class="fa-solid fa-arrow-right text-[9px]"></i>
+                                        <strong class="text-slate-600">{{ d.destination_city }}</strong>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold
+                                        {% if d.shipping_type == 'Overnight' %}bg-purple-100 text-purple-700
+                                        {% elif d.shipping_type == 'Express' %}bg-amber-100 text-amber-700
+                                        {% elif d.shipping_type == 'Freight' %}bg-slate-200 text-slate-700
+                                        {% else %}bg-blue-100 text-blue-700{% endif %}">
+                                        {{ d.shipping_type }}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center space-x-1
+                                        {% if d.status == 'Delivered' %}bg-emerald-100 text-emerald-800
+                                        {% elif d.status == 'In Transit' %}bg-amber-100 text-amber-800
+                                        {% elif d.status == 'Out for Delivery' %}bg-indigo-100 text-indigo-800
+                                        {% elif d.status == 'Cancelled' %}bg-rose-100 text-rose-800
+                                        {% else %}bg-slate-100 text-slate-800{% endif %}">
+                                        <span class="w-1.5 h-1.5 rounded-full 
+                                            {% if d.status == 'Delivered' %}bg-emerald-500
+                                            {% elif d.status == 'In Transit' %}bg-amber-500
+                                            {% elif d.status == 'Out for Delivery' %}bg-indigo-500
+                                            {% else %}bg-slate-400{% endif %}"></span>
+                                        <span>{{ d.status }}</span>
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4">
+                                    {% if d.vehicle_code %}
+                                        <div class="font-medium text-slate-800">{{ d.vehicle_code }}</div>
+                                        <div class="text-[10px] text-slate-400">{{ d.driver_name }} ({{ d.vehicle_type }})</div>
+                                    {% else %}
+                                        <span class="text-slate-400 italic">Unassigned</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 text-right">
+                                    <a href="{{ url_for('shipment_detail', tracking_number=d.tracking_number) }}" class="p-1.5 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 rounded text-slate-600 transition" title="Inspect">
+                                        <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="py-8 text-center text-slate-400 italic">
+                                    No active shipments currently in pipeline.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Right 1 Col: Destination Analytics & Live Backend Feed -->
+        <div class="space-y-6">
+
+            <!-- Destination Analytics Card (SQL VIEW view_destination_analytics) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-city text-indigo-600 text-sm"></i>
+                        <h3 class="text-sm font-bold text-slate-800">Top Destinations</h3>
+                    </div>
+                    <span class="text-[9px] font-mono bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200">
+                        GROUP BY City
+                    </span>
+                </div>
+
+                <div class="space-y-2.5">
+                    {% for city in city_analytics %}
+                    <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-300 transition-colors flex items-center justify-between text-xs">
+                        <div>
+                            <div class="font-semibold text-slate-800">{{ city.destination_city }}</div>
+                            <div class="text-[11px] text-slate-400">
+                                {{ city.total_shipments }} parcels • ${{ city.total_revenue }} rev
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800">
+                                {{ city.delivered_count }} delivered
+                            </span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-slate-400 text-center py-4">No destination data yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Fleet & Warehouse Summary -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center">
+                    <i class="fa-solid fa-warehouse text-emerald-600 mr-2"></i>
+                    Infrastructure Assets
+                </h3>
+                <div class="grid grid-cols-2 gap-3 text-center">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div class="text-lg font-bold text-slate-800">{{ fleet_count.available or 0 }} / {{ fleet_count.total or 0 }}</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-semibold">Available Fleet</div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div class="text-lg font-bold text-slate-800">{{ warehouse_count.total or 0 }}</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-semibold">Hub Warehouses</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DBMS Trigger Explainer Box -->
+            <div class="bg-slate-900 text-white rounded-xl p-4 shadow-sm border border-slate-800 text-xs">
+                <div class="flex items-center space-x-2 text-emerald-400 font-mono text-[11px] mb-2">
+                    <i class="fa-solid fa-code-commit"></i>
+                    <span>Automated Trigger Engine</span>
+                </div>
+                <p class="text-slate-300 leading-relaxed text-[11px]">
+                    Every time a shipment status changes, SQLite Trigger <code class="text-amber-300 font-mono">trg_shipment_status_audit</code> automatically inserts an audit log and milestone in real-time.
+                </p>
+                <button onclick="document.getElementById('toggleSqlDrawerBtn').click()" class="mt-3 w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-mono transition border border-slate-700 flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-bolt text-amber-400"></i>
+                    <span>Watch Trigger Fire in Drawer</span>
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
